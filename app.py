@@ -8,6 +8,16 @@ import json
 import time
 import asyncio
 from homeassistant_api import Client
+from homeassistant_api.errors import RequestError
+
+import werkzeug.exceptions
+
+def get_body(self, environ=None, scope=None):
+    if self.description:
+        return f'HTTP {self.code} {self.name}: {self.description}'
+    return f'HTTP {self.code} {self.name}'
+
+werkzeug.exceptions.HTTPException.get_body = get_body
 
 from flask import Flask, Response, request, abort, redirect, jsonify
 
@@ -54,6 +64,18 @@ def get_entities(path=None):
                 e = e.get('entities')
     return e
 
+def get_services(path=None):
+    e = {k: v.model_dump() for k,v in client().get_domains().items()}
+    if path:
+        parts = re.split('\.|/', path)
+        for a in parts:
+            e = e.get(a)
+            if not e:
+                break
+            if type(e) == dict and 'services' in e.keys() and not 'services' in parts:
+                e = e.get('services')
+    return e
+
 @app.route('/entities')
 def entities_route():
     return jsonify(get_entities())
@@ -83,6 +105,35 @@ def script_path_trigger_route(name):
     else:
         abort(404, 'invalid script name')
 
+@app.route('/services')
+def services_route():
+    return jsonify(get_services())
+
+@app.route('/services/<path:path>')
+def services_path_route(path):
+    return jsonify(get_services(path))
+
+@app.route('/services/<path:name>/trigger', methods=['GET','POST'])
+def services_path_trigger_route(name):
+    domain = name.split('/')[0]
+    ent = name.split('/')[1:]
+    try:
+        s = getattr(client().get_domain(domain), ent[0])
+        for i in ent[1:]:
+            s = getattr(s, i)
+    except Exception as e:
+        return abort(500, f'error finding service {name=} {domain=} {ent=} {e}')
+    data = {**request.values, **(request.json if request.is_json else {})}
+    if s:
+        print(f'triggering service {name=} with {data=}')
+        try:
+            ret = s.trigger(**data)
+            print(f'{ret=}')
+            return jsonify([k.model_dump() if getattr(k, 'model_dump') else k for k in ret])
+        except RequestError as e:
+            return abort(500, f'error triggering service {name=} with {data=}: {e}')
+    else:
+        abort(404, 'invalid script name')
 
 @app.route('/healthz')
 def healthz_route():
