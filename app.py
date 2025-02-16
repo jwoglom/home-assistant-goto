@@ -22,12 +22,6 @@ werkzeug.exceptions.HTTPException.get_body = get_body
 from flask import Flask, Response, request, abort, redirect, jsonify
 
 is_gunicorn = "gunicorn" in os.environ.get("SERVER_SOFTWARE", "")
-if is_gunicorn:
-    from prometheus_flask_exporter.multiprocess import GunicornInternalPrometheusMetrics as PrometheusMetrics
-else:
-    from prometheus_flask_exporter import PrometheusMetrics
-
-from prometheus_client import Counter, Gauge
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -38,7 +32,6 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-metrics = PrometheusMetrics(app)
 
 HA_API_URL = os.getenv('HA_API_URL')
 HA_TOKEN = os.getenv('HA_TOKEN')
@@ -84,17 +77,17 @@ def entities_route():
 def entities_path_route(path):
     return jsonify(get_entities(path))
 
-@app.route('/script')
-def script_route():
+@app.route('/scripts')
+def scripts_route():
     return jsonify(client().get_domain('script').model_dump()['services'])
 
-@app.route('/script/<path:name>')
-def script_path_route(name):
+@app.route('/scripts/<path:name>')
+def scripts_path_route(name):
     s = getattr(client().get_domain('script'), name)
     return jsonify(s.model_dump())
 
-@app.route('/script/<path:name>/trigger', methods=['GET','POST'])
-def script_path_trigger_route(name):
+@app.route('/scripts/<path:name>/trigger', methods=['GET','POST'])
+def scripts_path_trigger_route(name):
     s = getattr(client().get_domain('script'), name)
     data = {**request.values, **(request.json if request.is_json else {})}
     if s:
