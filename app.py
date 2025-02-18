@@ -70,23 +70,28 @@ def get_services(path=None):
     return e
 
 @app.route('/entities')
+@app.route('/entity')
 def entities_route():
     return jsonify(get_entities())
 
 @app.route('/entities/<path:path>')
+@app.route('/entity/<path:path>')
 def entities_path_route(path):
     return jsonify(get_entities(path))
 
 @app.route('/scripts')
+@app.route('/script')
 def scripts_route():
     return jsonify(client().get_domain('script').model_dump()['services'])
 
 @app.route('/scripts/<path:name>')
+@app.route('/script/<path:name>')
 def scripts_path_route(name):
     s = getattr(client().get_domain('script'), name)
     return jsonify(s.model_dump())
 
 @app.route('/scripts/<path:name>/trigger', methods=['GET','POST'])
+@app.route('/script/<path:name>/trigger', methods=['GET','POST'])
 def scripts_path_trigger_route(name):
     s = getattr(client().get_domain('script'), name)
     data = {**request.values, **(request.json if request.is_json else {})}
@@ -98,14 +103,17 @@ def scripts_path_trigger_route(name):
     else:
         abort(404, 'invalid script name')
 
+@app.route('/service')
 @app.route('/services')
 def services_route():
     return jsonify(get_services())
 
+@app.route('/service/<path:path>')
 @app.route('/services/<path:path>')
 def services_path_route(path):
     return jsonify(get_services(path))
 
+@app.route('/service/<path:name>/trigger', methods=['GET','POST'])
 @app.route('/services/<path:name>/trigger', methods=['GET','POST'])
 def services_path_trigger_route(name):
     domain = name.split('/')[0]
